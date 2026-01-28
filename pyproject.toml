@@ -29,16 +29,65 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Individual backend dependencies
 qwen = [
     "qwen-tts>=0.0.4",
     "torch>=2.0",
 ]
-mp3 = ["pydub>=0.25"]
-all = [
-    "qwen-tts>=0.0.4",
+chatterbox = [
+    "chatterbox-tts",
     "torch>=2.0",
+    "torchaudio>=2.0",
+]
+kokoro = [
+    "kokoro>=0.9.4",
+    "soundfile>=0.12",
+]
+fish-speech = [
+    "fish-audio-sdk",
+]
+bark = [
+    "transformers>=4.35",
+    "torch>=2.0",
+    "scipy>=1.10",
+]
+coqui = [
+    "coqui-tts",
+    "torch>=2.0",
+]
+# Note: cosyvoice requires manual installation from GitHub
+
+# Audio format support
+mp3 = ["pydub>=0.25"]
+
+# Install all backends (except cosyvoice which needs manual install)
+all-backends = [
+    "qwen-tts>=0.0.4",
+    "chatterbox-tts",
+    "kokoro>=0.9.4",
+    "fish-audio-sdk",
+    "transformers>=4.35",
+    "coqui-tts",
+    "torch>=2.0",
+    "torchaudio>=2.0",
+    "scipy>=1.10",
     "pydub>=0.25",
 ]
+
+# Full installation with all features
+all = [
+    "qwen-tts>=0.0.4",
+    "chatterbox-tts",
+    "kokoro>=0.9.4",
+    "fish-audio-sdk",
+    "transformers>=4.35",
+    "coqui-tts",
+    "torch>=2.0",
+    "torchaudio>=2.0",
+    "scipy>=1.10",
+    "pydub>=0.25",
+]
+
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
