@@ -1,10 +1,13 @@
 """WAV export utilities."""
 
+import logging
 import os
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import soundfile as sf
+
+logger = logging.getLogger("tts-toolkit")
 
 
 def export_wav(
@@ -43,7 +46,7 @@ def export_wav(
     return output_path
 
 
-def read_wav(path: str) -> tuple:
+def read_wav(path: str) -> Tuple[np.ndarray, int]:
     """
     Read WAV file.
 
@@ -52,7 +55,13 @@ def read_wav(path: str) -> tuple:
 
     Returns:
         Tuple of (audio array, sample rate)
+
+    Raises:
+        FileNotFoundError: If file does not exist
     """
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"WAV file not found: {path}")
+
     audio, sr = sf.read(path, dtype="float32")
 
     # Ensure mono
@@ -62,7 +71,7 @@ def read_wav(path: str) -> tuple:
     return audio, sr
 
 
-def get_wav_info(path: str) -> dict:
+def get_wav_info(path: str) -> Dict[str, Any]:
     """
     Get information about a WAV file.
 
@@ -71,7 +80,13 @@ def get_wav_info(path: str) -> dict:
 
     Returns:
         Dictionary with file info
+
+    Raises:
+        FileNotFoundError: If file does not exist
     """
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"WAV file not found: {path}")
+
     info = sf.info(path)
     return {
         "duration_sec": info.duration,
@@ -84,7 +99,7 @@ def get_wav_info(path: str) -> dict:
 
 
 def concatenate_wav_files(
-    input_paths: list,
+    input_paths: List[str],
     output_path: str,
     crossfade_ms: int = 0,
 ) -> str:
@@ -98,9 +113,18 @@ def concatenate_wav_files(
 
     Returns:
         Output file path
+
+    Raises:
+        ValueError: If no input files provided
+        FileNotFoundError: If any input file does not exist
     """
     if not input_paths:
         raise ValueError("No input files provided")
+
+    # Validate all files exist
+    for path in input_paths:
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Input file not found: {path}")
 
     # Read all files
     audios = []

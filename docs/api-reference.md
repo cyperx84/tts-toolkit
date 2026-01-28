@@ -100,9 +100,14 @@ class MyBackend(TTSBackend):
     def sample_rate(self) -> int: ...
 
     def supports_voice_cloning(self) -> bool: ...
+    def supports_streaming(self) -> bool: ...
+    def supports_emotions(self) -> bool: ...
+    def get_supported_languages(self) -> List[str]: ...
 ```
 
 ### QwenBackend
+
+Production backend with streaming and emotion support.
 
 ```python
 from tts_toolkit.backends import QwenBackend
@@ -114,17 +119,197 @@ backend = QwenBackend(
 
 backend.load_model()
 voice_prompt = backend.create_voice_prompt("ref.wav", "Transcript")
-audio, sr = backend.generate("Hello", voice_prompt)
+audio, sr = backend.generate("Hello", voice_prompt, language="English")
+```
+
+### ChatterboxBackend
+
+Emotion-aware TTS with paralinguistic tags.
+
+```python
+from tts_toolkit.backends import ChatterboxBackend
+
+backend = ChatterboxBackend(
+    model_type="default",  # or "turbo" for faster inference
+    device="cuda",
+)
+
+backend.load_model()
+voice_prompt = backend.create_voice_prompt("ref.wav", "Reference text")
+
+# Generate with emotion tags
+audio, sr = backend.generate(
+    text="Hi there [chuckle], how are you doing?",
+    voice_prompt=voice_prompt,
+    exaggeration=0.5,  # 0.0-1.0, emotion intensity
+)
+
+# Supported tags: [laugh], [chuckle], [sigh], [gasp], [clears throat]
+```
+
+### KokoroBackend
+
+Lightweight, fast backend (82M parameters).
+
+```python
+from tts_toolkit.backends import KokoroBackend
+
+backend = KokoroBackend(
+    voice="af_heart",  # Built-in voice
+    lang_code="a",     # 'a'=American, 'b'=British
+    speed=1.0,
+)
+
+# Built-in voices (no reference audio needed)
+# American: af_heart, af_bella, af_nicole, af_sarah, af_sky
+# American Male: am_adam, am_michael
+# British: bf_emma, bf_isabella, bm_george, bm_lewis
+
+backend.load_model()
+voice_prompt = backend.create_voice_prompt("", "")  # Uses built-in voice
+audio, sr = backend.generate("Hello, world!")
+```
+
+### FishSpeechBackend
+
+API-based backend (no GPU required).
+
+```python
+from tts_toolkit.backends import FishSpeechBackend
+import os
+
+backend = FishSpeechBackend(
+    api_key=os.environ["FISH_AUDIO_API_KEY"],
+    model_id="speech-01-turbo",
+)
+
+backend.load_model()
+
+# Option 1: Use reference audio for voice cloning
+voice_prompt = backend.create_voice_prompt(
+    reference_audio="voice_sample.wav",  # 10-30 seconds ideal
+    reference_text="Transcript of the sample",
+)
+
+# Option 2: Use pre-uploaded voice model
+voice_prompt = backend.create_voice_prompt(
+    reference_audio="",
+    reference_text="",
+    reference_id="your-voice-model-id",
+)
+
+audio, sr = backend.generate("Hello from Fish Speech!", voice_prompt)
+```
+
+### BarkBackend
+
+Expressive TTS with non-verbal sounds.
+
+```python
+from tts_toolkit.backends import BarkBackend
+
+backend = BarkBackend(
+    model_size="suno/bark",  # or "suno/bark-small"
+    device="cuda",
+)
+
+backend.load_model()
+voice_prompt = backend.create_voice_prompt("ref.wav", "Reference text")
+
+# Generate with non-verbal sounds
+audio, sr = backend.generate(
+    text="Oh wow! [laughter] That's amazing [sighs].",
+    voice_prompt=voice_prompt,
+)
+
+# Supported: [laughter], [laughs], [sighs], [music], [gasps], [clears throat]
+# Use ♪ for singing: "♪ La la la ♪"
+# Use ... for hesitation: "I... um... okay"
+# Use CAPS for emphasis: "I REALLY love it"
+```
+
+### CosyVoice2Backend
+
+Ultra-low latency streaming (150ms first packet).
+
+```python
+from tts_toolkit.backends import CosyVoice2Backend
+
+backend = CosyVoice2Backend(
+    model_dir="pretrained_models/CosyVoice2-0.5B",
+    load_jit=False,
+    load_trt=False,  # Enable for TensorRT acceleration
+)
+
+backend.load_model()
+voice_prompt = backend.create_voice_prompt(
+    reference_audio="ref_16k.wav",  # Must be 16kHz
+    reference_text="Reference transcript",
+)
+
+# Standard generation
+audio, sr = backend.generate("你好，世界！", voice_prompt)
+
+# Streaming generation
+for chunk_audio, chunk_sr in backend.generate_streaming(
+    text="Long text here...",
+    voice_prompt=voice_prompt,
+):
+    # Process each chunk as it arrives
+    play_audio(chunk_audio)
+```
+
+### CoquiXTTSBackend
+
+Multi-language TTS with 6-second voice cloning.
+
+```python
+from tts_toolkit.backends import CoquiXTTSBackend
+
+backend = CoquiXTTSBackend(
+    model_name="tts_models/multilingual/multi-dataset/xtts_v2",
+    device="cuda",
+)
+
+backend.load_model()
+voice_prompt = backend.create_voice_prompt(
+    reference_audio="ref.wav",  # 6+ seconds recommended
+    reference_text="",  # Not required for XTTS
+)
+
+# Generate in any of 17 languages
+audio, sr = backend.generate(
+    text="Bonjour, comment allez-vous?",
+    voice_prompt=voice_prompt,
+    language="fr",  # en, es, fr, de, it, pt, pl, tr, ru, nl, cs, ar, zh-cn, ja, hu, ko, hi
+)
 ```
 
 ### MockBackend
 
+Testing backend with no dependencies.
+
 ```python
 from tts_toolkit.backends import MockBackend
 
-backend = MockBackend(sample_rate=24000)
+backend = MockBackend(
+    sample_rate=24000,
+    mode="sine",  # "silent" or "sine"
+)
 audio, sr = backend.generate("Hello", voice_prompt=None)
 ```
+
+### Backend Comparison
+
+| Backend | Speed | Quality | GPU Required | Voice Cloning | Streaming |
+|---------|-------|---------|--------------|---------------|-----------|
+| Qwen | Medium | High | Recommended | 3-10s audio | ✅ |
+| Chatterbox | Medium | High | Yes | 3-10s audio | ❌ |
+| Kokoro | Fast | Good | No | Built-in voices | ❌ |
+| Fish Speech | Varies | High | No (API) | 10-30s audio | ✅ |
+| Bark | Slow | High | Recommended | Voice presets | ❌ |
+| CosyVoice2 | Fast | High | Recommended | Short clips | ✅ |
+| Coqui XTTS | Medium | High | Recommended | 6s audio | ✅ |
 
 ## Format Handlers
 
