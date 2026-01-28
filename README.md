@@ -9,7 +9,7 @@ An extensible text-to-speech toolkit for creating podcasts, audiobooks, voiceove
 - **Audiobooks**: Generate chapter-based audiobooks from Markdown
 - **Background Music**: Add intro, outro, and background music
 - **Checkpointing**: Resume long generation tasks if interrupted
-- **8 TTS Backends**: Qwen, Chatterbox, Kokoro, Bark, Fish Speech, CosyVoice2, Coqui XTTS
+- **7 TTS Backends**: Qwen, Chatterbox, Kokoro, Bark, Fish Speech, CosyVoice2, Coqui XTTS
 - **Batch Processing**: Process multiple files in parallel
 - **Quality Evaluation**: MOS prediction, speaker similarity, WER metrics
 - **Config Files**: YAML configuration for consistent settings
