@@ -1,0 +1,23 @@
+{
+  "name": "narrator",
+  "description": "Professional narrator voice preset - warm and engaging storytelling tone",
+  "metadata": {
+    "gender": null,
+    "age_range": null,
+    "accent": "neutral",
+    "tone": "warm",
+    "use_cases": ["audiobook", "documentary", "tutorial"]
+  },
+  "generation_params": {
+    "temperature": 0.85,
+    "top_k": 45,
+    "top_p": 0.95,
+    "x_vector_only": false
+  },
+  "emotion_presets": {
+    "neutral": {},
+    "dramatic": {"temperature": 0.9, "top_k": 55},
+    "calm": {"temperature": 0.75, "top_k": 35},
+    "excited": {"temperature": 0.95, "top_k": 65}
+  }
+}

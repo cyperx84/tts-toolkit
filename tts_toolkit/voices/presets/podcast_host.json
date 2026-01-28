@@ -1,0 +1,23 @@
+{
+  "name": "podcast_host",
+  "description": "Podcast host voice preset - conversational and engaging",
+  "metadata": {
+    "gender": null,
+    "age_range": null,
+    "accent": "neutral",
+    "tone": "conversational",
+    "use_cases": ["podcast", "interview", "discussion"]
+  },
+  "generation_params": {
+    "temperature": 0.92,
+    "top_k": 55,
+    "top_p": 1.0,
+    "x_vector_only": false
+  },
+  "emotion_presets": {
+    "neutral": {},
+    "interested": {"temperature": 0.95, "top_k": 60},
+    "thoughtful": {"temperature": 0.85, "top_k": 45},
+    "excited": {"temperature": 1.0, "top_k": 70}
+  }
+}

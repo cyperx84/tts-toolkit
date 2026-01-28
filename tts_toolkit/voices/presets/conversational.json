@@ -1,0 +1,23 @@
+{
+  "name": "conversational",
+  "description": "Conversational voice preset - natural and casual speaking style",
+  "metadata": {
+    "gender": null,
+    "age_range": null,
+    "accent": "neutral",
+    "tone": "casual",
+    "use_cases": ["dialogue", "chat", "casual"]
+  },
+  "generation_params": {
+    "temperature": 0.92,
+    "top_k": 55,
+    "top_p": 1.0,
+    "x_vector_only": false
+  },
+  "emotion_presets": {
+    "neutral": {},
+    "happy": {"temperature": 0.95, "top_k": 60},
+    "sad": {"temperature": 0.85, "top_k": 40},
+    "surprised": {"temperature": 1.0, "top_k": 70}
+  }
+}

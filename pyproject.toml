@@ -1,0 +1,75 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tts-toolkit"
+version = "0.1.0"
+description = "Extensible TTS toolkit for podcasts, audiobooks, voiceovers, and dialogues"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+license = { text = "Apache-2.0" }
+authors = [{ name = "TTS Toolkit Contributors" }]
+
+dependencies = [
+    "numpy>=1.20",
+    "soundfile>=0.12",
+    "tqdm>=4.0",
+]
+
+[project.optional-dependencies]
+qwen = [
+    "qwen-tts>=0.0.4",
+    "torch>=2.0",
+]
+mp3 = ["pydub>=0.25"]
+all = [
+    "qwen-tts>=0.0.4",
+    "torch>=2.0",
+    "pydub>=0.25",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "ruff>=0.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/tts-toolkit"
+Repository = "https://github.com/yourusername/tts-toolkit"
+Documentation = "https://github.com/yourusername/tts-toolkit/blob/main/docs/getting-started.md"
+
+[project.scripts]
+tts-toolkit = "tts_toolkit.cli:main"
+
+[tool.setuptools]
+packages = { find = { where = ["."], include = ["tts_toolkit*"] } }
+include-package-data = true
+
+[tool.setuptools.package-data]
+tts_toolkit = ["py.typed", "**/*.json"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
