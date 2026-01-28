@@ -8,13 +8,38 @@ Thank you for your interest in contributing to TTS Toolkit! This document provid
 
 - Python 3.9 or higher
 - Git
+- [UV](https://docs.astral.sh/uv/) (recommended) or pip
 - (Optional) CUDA-capable GPU for testing TTS backends
 
 ### Setting Up the Development Environment
 
+#### Using UV (Recommended)
+
+[UV](https://docs.astral.sh/uv/) provides 10-100x faster installs, which is especially helpful given the large ML dependencies.
+
+```bash
+# Install UV (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Clone the repository
+git clone https://github.com/cyperx84/tts-toolkit.git
+cd tts-toolkit
+
+# Create virtual environment and install dependencies
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv pip install -e ".[dev,all-backends]"
+
+# Or use uv run to execute without activation
+uv run pytest
+uv run black tts_toolkit tests
+```
+
+#### Using pip
+
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/tts-toolkit.git
+git clone https://github.com/cyperx84/tts-toolkit.git
 cd tts-toolkit
 
 # Create a virtual environment
@@ -29,7 +54,7 @@ pip install -e ".[dev,all-backends]"
 
 ```bash
 # Run all tests
-pytest
+pytest                                    # or: uv run pytest
 
 # Run with coverage
 pytest --cov=tts_toolkit --cov-report=html
@@ -47,10 +72,10 @@ We use `black` for formatting and `ruff` for linting:
 
 ```bash
 # Format code
-black tts_toolkit tests
+black tts_toolkit tests                   # or: uv run black tts_toolkit tests
 
 # Check linting
-ruff check tts_toolkit tests
+ruff check tts_toolkit tests              # or: uv run ruff check tts_toolkit tests
 
 # Fix auto-fixable issues
 ruff check --fix tts_toolkit tests

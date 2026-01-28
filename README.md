@@ -33,6 +33,32 @@ TTS Toolkit is an extensible text-to-speech framework that makes it easy to gene
 
 ## Installation
 
+### Using UV (Recommended)
+
+[UV](https://docs.astral.sh/uv/) is a fast Python package manager that provides 10-100x faster installs.
+
+```bash
+# Install UV (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Basic installation
+uv pip install tts-toolkit
+
+# With a specific backend
+uv pip install tts-toolkit[qwen]        # Qwen3-TTS (voice cloning)
+uv pip install tts-toolkit[chatterbox]  # Chatterbox (emotion control)
+uv pip install tts-toolkit[kokoro]      # Kokoro (fast, lightweight)
+
+# All backends
+uv pip install tts-toolkit[all-backends]
+
+# Quick start with virtual environment
+uv venv && source .venv/bin/activate
+uv pip install tts-toolkit[qwen]
+```
+
+### Using pip
+
 ```bash
 # Basic installation
 pip install tts-toolkit
@@ -48,6 +74,8 @@ pip install tts-toolkit[fish-speech] # Fish Speech (API-based)
 # All backends
 pip install tts-toolkit[all-backends]
 ```
+
+See the [Getting Started](docs/getting-started.md) guide for detailed installation options.
 
 ## Quick Start
 

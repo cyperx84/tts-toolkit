@@ -4,13 +4,98 @@ TTS Toolkit is an extensible text-to-speech toolkit for creating podcasts, audio
 
 ## Installation
 
-### Basic Installation
+TTS Toolkit can be installed using either **UV** (recommended) or **pip**.
+
+### Using UV (Recommended)
+
+[UV](https://docs.astral.sh/uv/) is a fast Python package manager written in Rust that provides 10-100x faster installs. It's especially beneficial for TTS Toolkit due to the large ML dependencies (PyTorch, transformers, etc.).
+
+#### Install UV
+
+```bash
+# macOS and Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Or via pip
+pip install uv
+
+# Or via Homebrew (macOS)
+brew install uv
+```
+
+#### Basic Installation with UV
+
+```bash
+# Create a virtual environment and install
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv pip install tts-toolkit
+```
+
+#### Choose Your Backend with UV
+
+```bash
+# Voice cloning with emotion control (recommended)
+uv pip install tts-toolkit[qwen]        # Qwen3-TTS - 11 languages, streaming
+uv pip install tts-toolkit[chatterbox]  # Chatterbox - emotion tags, 23 languages
+
+# Fast and lightweight
+uv pip install tts-toolkit[kokoro]      # Kokoro - 82M params, Apache 2.0 license
+
+# Expressive with non-verbal sounds
+uv pip install tts-toolkit[bark]        # Bark - [laughter], [sighs], ♪ singing
+
+# Maximum language support
+uv pip install tts-toolkit[coqui]       # Coqui XTTS - 17 languages, 6s cloning
+
+# API-based (no GPU required)
+uv pip install tts-toolkit[fish-speech] # Fish Speech - cloud API
+
+# Install all backends
+uv pip install tts-toolkit[all-backends]
+```
+
+#### Using `uv run` (No Activation Required)
+
+UV can run commands directly without manually activating the virtual environment:
+
+```bash
+# Create venv and install in one step
+uv venv && uv pip install tts-toolkit[qwen]
+
+# Run TTS Toolkit directly
+uv run tts-toolkit --help
+uv run tts-toolkit say "Hello, world!" --voice my-voice
+```
+
+#### Development Installation with UV
+
+```bash
+git clone https://github.com/cyperx84/tts-toolkit.git
+cd tts-toolkit
+
+# Create venv and install in development mode
+uv venv
+uv pip install -e ".[dev,all-backends]"
+
+# Or use uv sync for reproducible installs (if uv.lock exists)
+uv sync --all-extras
+```
+
+---
+
+### Using pip
+
+#### Basic Installation
 
 ```bash
 pip install tts-toolkit
 ```
 
-### Choose Your Backend
+#### Choose Your Backend
 
 TTS Toolkit supports multiple backends. Choose based on your needs:
 
@@ -35,6 +120,18 @@ pip install tts-toolkit[fish-speech] # Fish Speech - cloud API
 pip install tts-toolkit[all-backends]
 ```
 
+#### Development Installation
+
+```bash
+git clone https://github.com/cyperx84/tts-toolkit.git
+cd tts-toolkit
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -e ".[dev,all-backends]"
+```
+
+---
+
 ### CosyVoice2 Installation (Manual)
 
 CosyVoice2 requires manual installation from GitHub:
@@ -42,15 +139,7 @@ CosyVoice2 requires manual installation from GitHub:
 ```bash
 git clone --recursive https://github.com/FunAudioLLM/CosyVoice.git
 cd CosyVoice
-pip install -r requirements.txt
-```
-
-### Development Installation
-
-```bash
-git clone https://github.com/yourusername/tts-toolkit.git
-cd tts-toolkit
-pip install -e ".[all-backends]"
+pip install -r requirements.txt  # Or: uv pip install -r requirements.txt
 ```
 
 ## Quick Start
