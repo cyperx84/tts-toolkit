@@ -9,7 +9,10 @@ An extensible text-to-speech toolkit for creating podcasts, audiobooks, voiceove
 - **Audiobooks**: Generate chapter-based audiobooks from Markdown
 - **Background Music**: Add intro, outro, and background music
 - **Checkpointing**: Resume long generation tasks if interrupted
-- **Extensible Backends**: Swap TTS engines (Qwen3-TTS, more coming)
+- **8 TTS Backends**: Qwen, Chatterbox, Kokoro, Bark, Fish Speech, CosyVoice2, Coqui XTTS
+- **Batch Processing**: Process multiple files in parallel
+- **Quality Evaluation**: MOS prediction, speaker similarity, WER metrics
+- **Config Files**: YAML configuration for consistent settings
 - **Claude Code Skills**: Built-in skills for seamless AI integration
 
 ## Installation
@@ -169,6 +172,7 @@ When using Claude Code in this project, these skills are available:
 - [Voice Profiles](docs/voice-profiles.md)
 - [Skills Guide](docs/skills-guide.md)
 - [Evaluation Guide](docs/evaluation.md) - Quality metrics and benchmarking
+- [Advanced Features](docs/advanced-features.md) - Batch processing, config files, metadata
 
 ## Examples
 

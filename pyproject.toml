@@ -60,6 +60,15 @@ coqui = [
 # Audio format support
 mp3 = ["pydub>=0.25"]
 
+# Configuration file support
+config = ["pyyaml>=6.0"]
+
+# Metadata embedding
+metadata = ["mutagen>=1.46"]
+
+# Memory tracking
+memory = ["psutil>=5.9"]
+
 # Evaluation metrics
 eval = [
     "librosa>=0.10",

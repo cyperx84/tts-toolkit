@@ -1,8 +1,10 @@
 """Main TTS pipeline with backend abstraction and checkpointing."""
 
 import json
+import logging
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
@@ -13,6 +15,8 @@ from .stitcher import AudioStitcher
 
 if TYPE_CHECKING:
     from ..backends.base import TTSBackend, VoicePrompt
+
+logger = logging.getLogger("tts-toolkit")
 
 
 @dataclass
@@ -371,3 +375,138 @@ class Pipeline:
             sf.write(output_path, audio, sr)
 
         return audio
+
+    def process_parallel(
+        self,
+        text: str,
+        ref_audio: str,
+        ref_text: str,
+        output_path: str,
+        work_dir: Optional[str] = None,
+        language: str = "Auto",
+        workers: int = 2,
+        progress_callback: Optional[Callable] = None,
+        **gen_kwargs,
+    ) -> str:
+        """Process text with parallel chunk generation.
+
+        Note: Parallel processing may not be faster for GPU backends
+        due to memory constraints. Best for CPU backends or API-based backends.
+
+        Args:
+            text: Text to synthesize
+            ref_audio: Path to reference audio for voice cloning
+            ref_text: Transcript of reference audio
+            output_path: Path for final output WAV file
+            work_dir: Working directory for chunks
+            language: Language code
+            workers: Number of parallel workers (default: 2)
+            progress_callback: Optional callback(current, total, chunk_text)
+            **gen_kwargs: Additional generation parameters
+
+        Returns:
+            Path to final output file
+        """
+        import soundfile as sf
+
+        # Setup working directory
+        if work_dir is None:
+            base = os.path.splitext(output_path)[0]
+            work_dir = f"{base}_chunks"
+        os.makedirs(work_dir, exist_ok=True)
+
+        # Chunk the text
+        chunks = self.chunker.chunk(text)
+        if not chunks:
+            raise ValueError("No text to process after chunking")
+
+        logger.info(f"Split text into {len(chunks)} chunks, processing with {workers} workers")
+
+        # Load backend and create voice prompt once
+        self.backend.load_model()
+        voice_prompt = self.backend.create_voice_prompt(
+            reference_audio=ref_audio,
+            reference_text=ref_text,
+        )
+
+        # Process chunks in parallel
+        results = {}
+        completed = 0
+        sample_rate = None
+
+        def process_chunk(index: int, chunk_text: str) -> Dict[str, Any]:
+            """Process a single chunk."""
+            output_chunk_path = os.path.join(work_dir, f"chunk_{index:04d}.wav")
+
+            try:
+                t0 = time.time()
+                audio, sr = self.backend.generate(
+                    text=chunk_text,
+                    voice_prompt=voice_prompt,
+                    language=language,
+                    **gen_kwargs,
+                )
+                sf.write(output_chunk_path, audio, sr)
+                t1 = time.time()
+
+                return {
+                    "index": index,
+                    "success": True,
+                    "path": output_chunk_path,
+                    "sample_rate": sr,
+                    "duration": t1 - t0,
+                }
+            except Exception as e:
+                logger.error(f"Chunk {index} failed: {e}")
+                return {
+                    "index": index,
+                    "success": False,
+                    "error": str(e),
+                }
+
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(process_chunk, i, chunk): i
+                for i, chunk in enumerate(chunks)
+            }
+
+            for future in as_completed(futures):
+                result = future.result()
+                results[result["index"]] = result
+
+                if result["success"]:
+                    sample_rate = result.get("sample_rate", sample_rate)
+                    completed += 1
+                    logger.info(
+                        f"Chunk {result['index'] + 1}/{len(chunks)} completed "
+                        f"in {result.get('duration', 0):.1f}s"
+                    )
+                else:
+                    logger.error(
+                        f"Chunk {result['index'] + 1}/{len(chunks)} failed: "
+                        f"{result.get('error', 'Unknown error')}"
+                    )
+
+                if progress_callback:
+                    progress_callback(
+                        len(results), len(chunks), chunks[result["index"]]
+                    )
+
+        # Check for failures
+        failed = [i for i, r in results.items() if not r["success"]]
+        if failed:
+            raise RuntimeError(
+                f"{len(failed)} chunks failed: {failed}. "
+                "Consider reducing workers or using sequential processing."
+            )
+
+        # Collect chunk files in order
+        chunk_paths = [results[i]["path"] for i in range(len(chunks))]
+
+        # Stitch together
+        logger.info(f"Stitching {len(chunk_paths)} chunks...")
+        self.stitcher.sample_rate = sample_rate
+        self.stitcher.stitch_files(chunk_paths, output_path)
+
+        logger.info(f"Output saved to: {output_path}")
+        return output_path

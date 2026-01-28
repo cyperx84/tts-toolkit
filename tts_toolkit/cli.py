@@ -103,6 +103,22 @@ def main():
     )
     _add_pipeline_args(pipeline_parser)
 
+    # Batch processing command
+    batch_parser = subparsers.add_parser(
+        "batch",
+        help="Process multiple files in parallel",
+        description="Batch process multiple text files to audio with parallel workers",
+    )
+    _add_batch_args(batch_parser)
+
+    # Config management command
+    config_parser = subparsers.add_parser(
+        "config",
+        help="Manage configuration",
+        description="Initialize, show, or edit configuration files",
+    )
+    _add_config_args(config_parser)
+
     args = parser.parse_args()
 
     if args.command is None:
@@ -125,6 +141,10 @@ def main():
             _run_say(args)
         elif args.command == "pipeline":
             _run_pipeline(args)
+        elif args.command == "batch":
+            _run_batch(args)
+        elif args.command == "config":
+            _run_config(args)
         else:
             parser.print_help()
             sys.exit(1)
@@ -699,6 +719,186 @@ def _run_pipeline(args):
     )
 
     print(f"\nDone! Output saved to: {output_path}")
+
+
+def _add_batch_args(parser: argparse.ArgumentParser):
+    """Add batch processing arguments."""
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument("--input-dir", "-i", help="Input directory with text files")
+    input_group.add_argument("--manifest", help="JSON manifest file with job specifications")
+
+    parser.add_argument("--output-dir", "-o", required=True, help="Output directory")
+    parser.add_argument("--ref-audio", "-a", help="Reference audio file")
+    parser.add_argument("--ref-text", "-r", help="Reference audio transcript")
+    parser.add_argument("--voice", "-v", help="Voice profile name")
+    parser.add_argument("--pattern", default="*.txt", help="Glob pattern for input files")
+    parser.add_argument("--workers", "-w", type=int, default=1, help="Parallel workers")
+    parser.add_argument("--timeout", type=int, default=300, help="Timeout per job (seconds)")
+    parser.add_argument("--report", help="Save JSON report to file")
+    _add_common_args(parser)
+
+
+def _add_config_args(parser: argparse.ArgumentParser):
+    """Add config management arguments."""
+    config_sub = parser.add_subparsers(dest="config_command")
+
+    # Init config
+    init_parser = config_sub.add_parser("init", help="Initialize config file")
+    init_parser.add_argument("--global", "-g", dest="global_config", action="store_true",
+                             help="Create global config in ~/.tts_toolkit/")
+
+    # Show config
+    config_sub.add_parser("show", help="Show current configuration")
+
+    # Set config value
+    set_parser = config_sub.add_parser("set", help="Set a config value")
+    set_parser.add_argument("key", help="Config key (e.g., backend, device)")
+    set_parser.add_argument("value", help="Config value")
+    set_parser.add_argument("--global", "-g", dest="global_config", action="store_true")
+
+
+def _run_batch(args):
+    """Run batch processing."""
+    from .utils.batch import (
+        BatchProcessor,
+        create_jobs_from_directory,
+        create_jobs_from_manifest,
+    )
+    from .voices.registry import VoiceRegistry
+    import json
+
+    logger.info("Starting batch processing")
+
+    # Get voice reference
+    ref_audio = args.ref_audio
+    ref_text = args.ref_text
+
+    if args.voice and not ref_audio:
+        registry = VoiceRegistry()
+        profile = registry.get(args.voice)
+        if profile is None:
+            logger.error(f"Voice profile not found: {args.voice}")
+            sys.exit(1)
+        ref_audio = profile.reference_audio
+        ref_text = profile.reference_text
+
+    # Create jobs
+    if args.manifest:
+        _validate_file_exists(args.manifest, "--manifest")
+        jobs = create_jobs_from_manifest(args.manifest)
+        logger.info(f"Loaded {len(jobs)} jobs from manifest")
+    else:
+        if not ref_audio or not ref_text:
+            logger.error("Must provide --ref-audio and --ref-text, or --voice")
+            sys.exit(1)
+
+        _validate_file_exists(args.input_dir, "--input-dir")
+        _validate_audio_file(ref_audio, "--ref-audio")
+
+        jobs = create_jobs_from_directory(
+            input_dir=args.input_dir,
+            output_dir=args.output_dir,
+            ref_audio=ref_audio,
+            ref_text=ref_text,
+            pattern=args.pattern,
+            language=args.language,
+        )
+        logger.info(f"Found {len(jobs)} files to process")
+
+    if not jobs:
+        logger.warning("No jobs to process")
+        return
+
+    # Create output directory
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    # Create backend
+    backend = _create_backend(args)
+
+    # Create processor
+    processor = BatchProcessor(
+        backend=backend,
+        workers=args.workers,
+        timeout=args.timeout,
+    )
+
+    # Progress callback
+    def progress(completed, total, result):
+        status = "✓" if result.success else "✗"
+        logger.info(f"[{completed}/{total}] {status} {result.job.input_path}")
+
+    # Process
+    summary = processor.process(jobs, progress_callback=progress)
+
+    # Print summary
+    print(f"\n{'='*50}")
+    print(f"Batch Processing Complete")
+    print(f"{'='*50}")
+    print(f"Total: {summary.total_jobs}")
+    print(f"Successful: {summary.successful}")
+    print(f"Failed: {summary.failed}")
+    print(f"Success Rate: {summary.success_rate:.1f}%")
+    print(f"Total Audio Duration: {summary.total_duration_sec / 60:.1f} minutes")
+    print(f"Processing Time: {summary.total_processing_time_sec:.1f} seconds")
+
+    # Save report
+    if args.report:
+        with open(args.report, "w") as f:
+            json.dump(summary.to_dict(), f, indent=2)
+        print(f"Report saved to: {args.report}")
+
+    if summary.failed > 0:
+        sys.exit(1)
+
+
+def _run_config(args):
+    """Run config management commands."""
+    from .utils.config import (
+        TTSConfig,
+        load_config,
+        save_config,
+        init_config,
+        GLOBAL_CONFIG_FILE,
+    )
+
+    if args.config_command == "init":
+        path = init_config(global_config=args.global_config)
+        print(f"Created config file: {path}")
+
+    elif args.config_command == "show":
+        config = load_config()
+        print("Current Configuration:")
+        print("-" * 40)
+        for key, value in config.to_dict().items():
+            if value:
+                print(f"  {key}: {value}")
+
+    elif args.config_command == "set":
+        config = load_config()
+        config_dict = config.to_dict()
+
+        if args.key not in config_dict:
+            logger.error(f"Unknown config key: {args.key}")
+            print(f"Valid keys: {', '.join(config_dict.keys())}")
+            sys.exit(1)
+
+        # Convert value type
+        old_value = config_dict[args.key]
+        if isinstance(old_value, bool):
+            new_value = args.value.lower() in ("true", "1", "yes")
+        elif isinstance(old_value, int):
+            new_value = int(args.value)
+        elif isinstance(old_value, float):
+            new_value = float(args.value)
+        else:
+            new_value = args.value
+
+        setattr(config, args.key, new_value)
+        save_config(config, global_config=args.global_config)
+        print(f"Set {args.key} = {new_value}")
+
+    else:
+        print("Usage: tts-toolkit config {init|show|set}")
 
 
 if __name__ == "__main__":
