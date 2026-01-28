@@ -1,8 +1,41 @@
 """Command-line interface for TTS Toolkit."""
 
 import argparse
+import logging
+import os
 import sys
+from pathlib import Path
 from typing import Optional
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger("tts-toolkit")
+
+# All available backends
+BACKEND_CHOICES = [
+    "qwen", "chatterbox", "kokoro", "fish_speech",
+    "bark", "cosyvoice", "coqui_xtts", "mock",
+]
+
+
+def _validate_file_exists(path: str, arg_name: str) -> None:
+    """Validate that a file exists."""
+    if not os.path.exists(path):
+        logger.error(f"{arg_name} not found: {path}")
+        sys.exit(1)
+
+
+def _validate_audio_file(path: str, arg_name: str) -> None:
+    """Validate that an audio file exists and has valid extension."""
+    _validate_file_exists(path, arg_name)
+    valid_exts = {".wav", ".mp3", ".flac", ".ogg", ".m4a"}
+    ext = Path(path).suffix.lower()
+    if ext not in valid_exts:
+        logger.warning(f"{arg_name} has unusual extension '{ext}', expected one of: {valid_exts}")
 
 
 def main():
@@ -132,27 +165,96 @@ def _add_common_args(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--backend",
         default="qwen",
-        choices=["qwen", "mock"],
-        help="TTS backend to use",
+        choices=BACKEND_CHOICES,
+        help="TTS backend: qwen, chatterbox, kokoro, fish_speech, bark, cosyvoice, coqui_xtts, mock",
+    )
+    parser.add_argument(
+        "--verbose", "-V",
+        action="store_true",
+        help="Enable verbose logging",
     )
 
 
 def _create_backend(args):
     """Create TTS backend from args."""
-    if args.backend == "mock":
+    backend_name = args.backend
+
+    if backend_name == "mock":
         from .backends import MockBackend
+        logger.info("Using MockBackend")
         return MockBackend()
-    else:
+
+    elif backend_name == "qwen":
         try:
             from .backends import QwenBackend
-            return QwenBackend(
-                model_name=args.model,
-                device=args.device,
-            )
+            logger.info(f"Using QwenBackend: {args.model}")
+            return QwenBackend(model_name=args.model, device=args.device)
         except ImportError:
-            print("Warning: qwen-tts not available, using MockBackend")
+            logger.warning("qwen-tts not installed, using MockBackend")
             from .backends import MockBackend
             return MockBackend()
+
+    elif backend_name == "chatterbox":
+        try:
+            from .backends import ChatterboxBackend
+            logger.info("Using ChatterboxBackend")
+            return ChatterboxBackend(device=args.device)
+        except ImportError:
+            logger.error("chatterbox-tts not installed. Run: pip install tts-toolkit[chatterbox]")
+            sys.exit(1)
+
+    elif backend_name == "kokoro":
+        try:
+            from .backends import KokoroBackend
+            logger.info("Using KokoroBackend")
+            return KokoroBackend()
+        except ImportError:
+            logger.error("kokoro not installed. Run: pip install tts-toolkit[kokoro]")
+            sys.exit(1)
+
+    elif backend_name == "fish_speech":
+        try:
+            from .backends import FishSpeechBackend
+            api_key = os.environ.get("FISH_AUDIO_API_KEY")
+            if not api_key:
+                logger.error("FISH_AUDIO_API_KEY environment variable required")
+                sys.exit(1)
+            logger.info("Using FishSpeechBackend")
+            return FishSpeechBackend(api_key=api_key)
+        except ImportError:
+            logger.error("fish-audio-sdk not installed. Run: pip install tts-toolkit[fish-speech]")
+            sys.exit(1)
+
+    elif backend_name == "bark":
+        try:
+            from .backends import BarkBackend
+            logger.info("Using BarkBackend")
+            return BarkBackend(device=args.device)
+        except ImportError:
+            logger.error("transformers not installed. Run: pip install tts-toolkit[bark]")
+            sys.exit(1)
+
+    elif backend_name == "cosyvoice":
+        try:
+            from .backends import CosyVoice2Backend
+            logger.info("Using CosyVoice2Backend")
+            return CosyVoice2Backend()
+        except ImportError:
+            logger.error("CosyVoice not installed. See docs for manual installation.")
+            sys.exit(1)
+
+    elif backend_name == "coqui_xtts":
+        try:
+            from .backends import CoquiXTTSBackend
+            logger.info("Using CoquiXTTSBackend")
+            return CoquiXTTSBackend(device=args.device)
+        except ImportError:
+            logger.error("coqui-tts not installed. Run: pip install tts-toolkit[coqui]")
+            sys.exit(1)
+
+    else:
+        logger.error(f"Unknown backend: {backend_name}")
+        sys.exit(1)
 
 
 def _add_voiceover_args(parser: argparse.ArgumentParser):
@@ -264,7 +366,10 @@ def _run_voiceover(args):
     from .formats.voiceover import VoiceoverHandler
     from .voices.registry import VoiceRegistry
 
-    print(f"Generating voiceover from: {args.input}")
+    # Validate input file exists
+    _validate_file_exists(args.input, "--input")
+
+    logger.info(f"Generating voiceover from: {args.input}")
 
     # Setup backend
     backend = _create_backend(args)
@@ -274,6 +379,10 @@ def _run_voiceover(args):
     with open(args.input, "r", encoding="utf-8") as f:
         text = f.read()
 
+    if not text.strip():
+        logger.error("Input file is empty")
+        sys.exit(1)
+
     # Get voice reference
     ref_audio = args.ref_audio
     ref_text = args.ref_text
@@ -281,12 +390,18 @@ def _run_voiceover(args):
     if args.voice and not ref_audio:
         registry = VoiceRegistry()
         profile = registry.get(args.voice)
+        if profile is None:
+            logger.error(f"Voice profile not found: {args.voice}")
+            sys.exit(1)
         ref_audio = profile.reference_audio
         ref_text = profile.reference_text
 
     if not ref_audio or not ref_text:
-        print("Error: Must provide --ref-audio and --ref-text, or --voice")
+        logger.error("Must provide --ref-audio and --ref-text, or --voice")
         sys.exit(1)
+
+    # Validate reference audio exists
+    _validate_audio_file(ref_audio, "--ref-audio")
 
     # Generate
     output = handler.process(
@@ -298,8 +413,8 @@ def _run_voiceover(args):
         temperature=args.temperature,
     )
 
-    print(f"Output saved to: {args.output}")
-    print(f"Duration: {output.duration_sec:.1f}s")
+    logger.info(f"Output saved to: {args.output}")
+    logger.info(f"Duration: {output.duration_sec:.1f}s")
 
 
 def _run_podcast(args):
