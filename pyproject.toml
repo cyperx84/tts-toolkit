@@ -60,6 +60,20 @@ coqui = [
 # Audio format support
 mp3 = ["pydub>=0.25"]
 
+# Evaluation metrics
+eval = [
+    "librosa>=0.10",
+    "openai-whisper>=20231117",
+]
+eval-full = [
+    "librosa>=0.10",
+    "openai-whisper>=20231117",
+    "pesq>=0.0.4",
+    "pystoi>=0.4",
+    "speechbrain>=1.0",
+    "resemblyzer>=0.1.3",
+]
+
 # Install all backends (except cosyvoice which needs manual install)
 all-backends = [
     "qwen-tts>=0.0.4",

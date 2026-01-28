@@ -18,8 +18,16 @@ An extensible text-to-speech toolkit for creating podcasts, audiobooks, voiceove
 # Basic installation
 pip install tts-toolkit
 
-# With Qwen3-TTS backend (recommended)
-pip install tts-toolkit[qwen]
+# With a specific backend
+pip install tts-toolkit[qwen]        # Qwen3-TTS (voice cloning)
+pip install tts-toolkit[chatterbox]  # Chatterbox (emotion control)
+pip install tts-toolkit[kokoro]      # Kokoro (fast, lightweight)
+pip install tts-toolkit[bark]        # Bark (expressive sounds)
+pip install tts-toolkit[coqui]       # Coqui XTTS (17 languages)
+pip install tts-toolkit[fish-speech] # Fish Speech (API-based)
+
+# All backends
+pip install tts-toolkit[all-backends]
 ```
 
 ## Quick Start
@@ -68,10 +76,16 @@ pipeline.process(
 
 ## Backends
 
-| Backend | Description | Voice Cloning |
-|---------|-------------|---------------|
-| `QwenBackend` | Qwen3-TTS | Yes |
-| `MockBackend` | Testing | No |
+| Backend | Description | Voice Cloning | Languages | Key Features |
+|---------|-------------|---------------|-----------|--------------|
+| `QwenBackend` | Qwen3-TTS | ✅ | 11 | Streaming, emotion control |
+| `ChatterboxBackend` | Resemble AI Chatterbox | ✅ | 23 | Emotion tags `[laugh]`, `[sigh]` |
+| `KokoroBackend` | Kokoro TTS | ✅ | 5 | Fast, 82M params, Apache 2.0 |
+| `FishSpeechBackend` | Fish Audio API | ✅ | 8 | API-based, DualAR architecture |
+| `BarkBackend` | Suno Bark | ✅ | 9+ | Non-verbal sounds, music |
+| `CosyVoice2Backend` | Alibaba CosyVoice2 | ✅ | 5+ | 150ms latency, Chinese dialects |
+| `CoquiXTTSBackend` | Coqui XTTS v2 | ✅ | 17 | 6s voice cloning, streaming |
+| `MockBackend` | Testing | ❌ | - | No dependencies |
 
 ### Using Different Backends
 
@@ -80,9 +94,27 @@ pipeline.process(
 from tts_toolkit.backends import QwenBackend
 backend = QwenBackend(model_name="Qwen/Qwen3-TTS-12Hz-0.6B-Base", device="cuda:0")
 
-# Mock backend (testing)
-from tts_toolkit.backends import MockBackend
-backend = MockBackend()
+# Chatterbox with emotion control
+from tts_toolkit.backends import ChatterboxBackend
+backend = ChatterboxBackend(device="cuda")
+# Supports: [laugh], [chuckle], [sigh], [gasp], [clears throat]
+
+# Kokoro for fast, lightweight TTS
+from tts_toolkit.backends import KokoroBackend
+backend = KokoroBackend(voice="af_heart")  # American female voice
+
+# Bark for expressive speech with sounds
+from tts_toolkit.backends import BarkBackend
+backend = BarkBackend(device="cuda")
+# Supports: [laughter], [sighs], [music], [gasps], ♪ for singing
+
+# Coqui XTTS for multilingual
+from tts_toolkit.backends import CoquiXTTSBackend
+backend = CoquiXTTSBackend(device="cuda")
+
+# Fish Speech (API-based)
+from tts_toolkit.backends import FishSpeechBackend
+backend = FishSpeechBackend(api_key="your-key")
 
 # Use with any format handler
 from tts_toolkit.formats import VoiceoverHandler
@@ -136,6 +168,7 @@ When using Claude Code in this project, these skills are available:
 - [API Reference](docs/api-reference.md)
 - [Voice Profiles](docs/voice-profiles.md)
 - [Skills Guide](docs/skills-guide.md)
+- [Evaluation Guide](docs/evaluation.md) - Quality metrics and benchmarking
 
 ## Examples
 
@@ -157,4 +190,10 @@ Apache 2.0 - See [LICENSE](LICENSE) for details.
 ## Acknowledgments
 
 - [Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS) for the amazing TTS model
+- [Chatterbox](https://github.com/resemble-ai/chatterbox) by Resemble AI for emotion-aware TTS
+- [Kokoro](https://github.com/hexgrad/kokoro) for lightweight, fast TTS
+- [Fish Speech](https://fish.audio) for API-based voice cloning
+- [Bark](https://github.com/suno-ai/bark) by Suno AI for expressive speech
+- [CosyVoice](https://github.com/FunAudioLLM/CosyVoice) by Alibaba for streaming TTS
+- [Coqui TTS](https://github.com/coqui-ai/TTS) for the XTTS v2 model
 - [Anthropic](https://anthropic.com) for Claude Code integration

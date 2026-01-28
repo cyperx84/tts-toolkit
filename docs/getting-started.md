@@ -10,22 +10,47 @@ TTS Toolkit is an extensible text-to-speech toolkit for creating podcasts, audio
 pip install tts-toolkit
 ```
 
-### With Qwen3-TTS Backend
+### Choose Your Backend
 
-For voice cloning capabilities:
+TTS Toolkit supports multiple backends. Choose based on your needs:
 
 ```bash
-pip install tts-toolkit[qwen]
+# Voice cloning with emotion control (recommended)
+pip install tts-toolkit[qwen]        # Qwen3-TTS - 11 languages, streaming
+pip install tts-toolkit[chatterbox]  # Chatterbox - emotion tags, 23 languages
+
+# Fast and lightweight
+pip install tts-toolkit[kokoro]      # Kokoro - 82M params, Apache 2.0 license
+
+# Expressive with non-verbal sounds
+pip install tts-toolkit[bark]        # Bark - [laughter], [sighs], ♪ singing
+
+# Maximum language support
+pip install tts-toolkit[coqui]       # Coqui XTTS - 17 languages, 6s cloning
+
+# API-based (no GPU required)
+pip install tts-toolkit[fish-speech] # Fish Speech - cloud API
+
+# Install all backends
+pip install tts-toolkit[all-backends]
 ```
 
-This installs the Qwen3-TTS backend with PyTorch support.
+### CosyVoice2 Installation (Manual)
+
+CosyVoice2 requires manual installation from GitHub:
+
+```bash
+git clone --recursive https://github.com/FunAudioLLM/CosyVoice.git
+cd CosyVoice
+pip install -r requirements.txt
+```
 
 ### Development Installation
 
 ```bash
 git clone https://github.com/yourusername/tts-toolkit.git
 cd tts-toolkit
-pip install -e ".[qwen]"
+pip install -e ".[all-backends]"
 ```
 
 ## Quick Start
@@ -86,20 +111,54 @@ pipeline.process(
 
 TTS Toolkit supports multiple TTS backends:
 
-| Backend | Description | Installation |
-|---------|-------------|--------------|
-| `QwenBackend` | Qwen3-TTS voice cloning | `pip install tts-toolkit[qwen]` |
-| `MockBackend` | Testing without GPU | Built-in |
+| Backend | Best For | Installation | Voice Cloning |
+|---------|----------|--------------|---------------|
+| `QwenBackend` | General purpose, streaming | `tts-toolkit[qwen]` | ✅ 3-10s audio |
+| `ChatterboxBackend` | Emotional speech, sound effects | `tts-toolkit[chatterbox]` | ✅ 3-10s audio |
+| `KokoroBackend` | Fast inference, low resources | `tts-toolkit[kokoro]` | ✅ Short clips |
+| `BarkBackend` | Expressive, non-verbal sounds | `tts-toolkit[bark]` | ✅ Voice presets |
+| `CoquiXTTSBackend` | Multi-language, streaming | `tts-toolkit[coqui]` | ✅ 6s audio |
+| `FishSpeechBackend` | No GPU, API-based | `tts-toolkit[fish-speech]` | ✅ 10-30s audio |
+| `CosyVoice2Backend` | Low latency, Chinese dialects | Manual install | ✅ Short clips |
+| `MockBackend` | Testing, CI/CD | Built-in | ❌ |
 
 ### Using Different Backends
 
 ```python
-# Qwen backend (requires GPU or CPU with patience)
+# Qwen backend (recommended for production)
 from tts_toolkit.backends import QwenBackend
 backend = QwenBackend(
     model_name="Qwen/Qwen3-TTS-12Hz-0.6B-Base",
     device="cuda:0",
 )
+
+# Chatterbox with emotion control
+from tts_toolkit.backends import ChatterboxBackend
+backend = ChatterboxBackend(device="cuda")
+# Use paralinguistic tags: [laugh], [chuckle], [sigh], [gasp]
+
+# Kokoro for fast, lightweight generation
+from tts_toolkit.backends import KokoroBackend
+backend = KokoroBackend(voice="af_heart")  # American female
+# Voices: af_heart, af_bella, am_adam, am_michael, bf_emma, etc.
+
+# Bark for expressive speech
+from tts_toolkit.backends import BarkBackend
+backend = BarkBackend(device="cuda")
+# Use: [laughter], [sighs], [music], [gasps], ♪ for singing
+
+# Coqui XTTS for multilingual
+from tts_toolkit.backends import CoquiXTTSBackend
+backend = CoquiXTTSBackend(device="cuda")
+# Supports: en, es, fr, de, it, pt, pl, tr, ru, nl, cs, ar, zh-cn, ja, hu, ko, hi
+
+# Fish Speech (API-based, no GPU needed)
+from tts_toolkit.backends import FishSpeechBackend
+backend = FishSpeechBackend(api_key="your-fish-audio-key")
+
+# CosyVoice2 for ultra-low latency
+from tts_toolkit.backends import CosyVoice2Backend
+backend = CosyVoice2Backend(model_dir="pretrained_models/CosyVoice2-0.5B")
 
 # Mock backend (for testing)
 from tts_toolkit.backends import MockBackend
