@@ -12,6 +12,12 @@ import numpy as np
 
 from .chunker import TextChunker
 from .stitcher import AudioStitcher
+from ..utils.memory import (
+    warn_if_low_memory,
+    clear_gpu_cache,
+    log_memory_stats,
+    estimate_text_memory,
+)
 
 if TYPE_CHECKING:
     from ..backends.base import TTSBackend, VoicePrompt
@@ -108,9 +114,13 @@ class Pipeline:
             try:
                 from ..backends import QwenBackend
                 self._backend = QwenBackend()
-            except ImportError:
+                logger.info("Using QwenBackend (default)")
+            except ImportError as e:
                 from ..backends import MockBackend
-                print("Warning: qwen-tts not available, using MockBackend")
+                logger.warning(
+                    f"qwen-tts not available ({e}), falling back to MockBackend. "
+                    "Install with: pip install tts-toolkit[qwen]"
+                )
                 self._backend = MockBackend()
         return self._backend
 
@@ -184,12 +194,21 @@ class Pipeline:
             work_dir = f"{base}_chunks"
         os.makedirs(work_dir, exist_ok=True)
 
+        # Check memory before starting
+        device = getattr(self._backend, 'device', 'cpu') if self._backend else 'cpu'
+        backend_name = self._backend.__class__.__name__.lower().replace('backend', '') if self._backend else 'unknown'
+        warn_if_low_memory(backend_name, len(text), device)
+
+        # Log initial memory state
+        logger.debug("Initial memory state:")
+        log_memory_stats(device)
+
         # Chunk the text
         chunks = self.chunker.chunk(text)
         if not chunks:
             raise ValueError("No text to process after chunking")
 
-        print(f"Split text into {len(chunks)} chunks")
+        logger.info(f"Split text into {len(chunks)} chunks")
 
         # Load or initialize checkpoint
         checkpoint = None
@@ -197,22 +216,22 @@ class Pipeline:
             checkpoint = self._load_checkpoint(work_dir)
             if checkpoint:
                 if len(checkpoint.chunks) != len(chunks):
-                    print("Chunk count mismatch, starting fresh")
+                    logger.info("Chunk count mismatch, starting fresh")
                     checkpoint = None
                 else:
                     for i, (cp_chunk, new_chunk) in enumerate(
                         zip(checkpoint.chunks, chunks)
                     ):
                         if cp_chunk["text"] != new_chunk:
-                            print(f"Chunk {i} text mismatch, starting fresh")
+                            logger.info(f"Chunk {i} text mismatch, starting fresh")
                             checkpoint = None
                             break
 
         if checkpoint is None:
             checkpoint = self._init_checkpoint(chunks, work_dir)
-            print("Created new checkpoint")
+            logger.info("Created new checkpoint")
         else:
-            print(
+            logger.info(
                 f"Resuming from checkpoint: {checkpoint.completed_count}/{len(chunks)} completed"
             )
 
@@ -231,7 +250,7 @@ class Pipeline:
 
             if chunk_status.status == "completed" and chunk_status.output_path:
                 if os.path.exists(chunk_status.output_path):
-                    print(f"Chunk {i + 1}/{len(chunks)}: skipping (already completed)")
+                    logger.debug(f"Chunk {i + 1}/{len(chunks)}: skipping (already completed)")
                     if progress_callback:
                         progress_callback(i + 1, len(chunks), chunk_status.text)
                     continue
@@ -243,7 +262,7 @@ class Pipeline:
             for attempt in range(self.max_retries):
                 try:
                     chunk_status.attempts = attempt + 1
-                    print(
+                    logger.info(
                         f"Chunk {i + 1}/{len(chunks)} (attempt {attempt + 1}): generating..."
                     )
 
@@ -266,20 +285,20 @@ class Pipeline:
                     checkpoint.completed_count += 1
                     checkpoint.sample_rate = sr
 
-                    print(f"Chunk {i + 1}/{len(chunks)}: completed in {t1 - t0:.1f}s")
+                    logger.info(f"Chunk {i + 1}/{len(chunks)}: completed in {t1 - t0:.1f}s")
                     success = True
                     break
 
                 except Exception as e:
                     chunk_status.error = str(e)
                     wait_time = 2 ** attempt
-                    print(f"Chunk {i + 1} failed: {e}. Retrying in {wait_time}s...")
+                    logger.warning(f"Chunk {i + 1} failed: {e}. Retrying in {wait_time}s...")
                     time.sleep(wait_time)
 
             if not success:
                 chunk_status.status = "failed"
                 checkpoint.failed_count += 1
-                print(f"Chunk {i + 1} failed after {self.max_retries} attempts")
+                logger.error(f"Chunk {i + 1} failed after {self.max_retries} attempts")
 
             checkpoint.chunks[i] = asdict(chunk_status)
             self._save_checkpoint(checkpoint, work_dir)
@@ -307,11 +326,16 @@ class Pipeline:
             )
 
         # Stitch together
-        print(f"Stitching {len(chunk_paths)} chunks...")
+        logger.info(f"Stitching {len(chunk_paths)} chunks...")
         self.stitcher.sample_rate = checkpoint.sample_rate
         self.stitcher.stitch_files(chunk_paths, output_path)
 
-        print(f"Output saved to: {output_path}")
+        # Clean up GPU memory after processing
+        if hasattr(self._backend, 'cleanup_gpu_memory'):
+            self._backend.cleanup_gpu_memory()
+        clear_gpu_cache()
+
+        logger.info(f"Output saved to: {output_path}")
         return output_path
 
     def process_file(

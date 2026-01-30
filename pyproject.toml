@@ -116,12 +116,14 @@ dev = [
     "pytest-cov>=4.0",
     "black>=23.0",
     "ruff>=0.1",
+    "mypy>=1.0",
+    "pre-commit>=3.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/tts-toolkit"
-Repository = "https://github.com/yourusername/tts-toolkit"
-Documentation = "https://github.com/yourusername/tts-toolkit/blob/main/docs/getting-started.md"
+Homepage = "https://github.com/cyperx84/tts-toolkit"
+Repository = "https://github.com/cyperx84/tts-toolkit"
+Documentation = "https://github.com/cyperx84/tts-toolkit/blob/main/docs/getting-started.md"
 
 [project.scripts]
 tts-toolkit = "tts_toolkit.cli:main"
@@ -145,3 +147,34 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+addopts = "-v --tb=short"
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+exclude = [
+    "tests/",
+    "build/",
+    "dist/",
+]
+
+[tool.coverage.run]
+source = ["tts_toolkit"]
+branch = true
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", "build", "dist"]
+skips = ["B101"]  # Skip assert warnings

@@ -39,6 +39,18 @@ GLOBAL_CONFIG_DIR = Path.home() / ".tts_toolkit"
 GLOBAL_CONFIG_FILE = GLOBAL_CONFIG_DIR / "config.yml"
 
 
+class ConfigValidationError(ValueError):
+    """Raised when config validation fails."""
+    pass
+
+
+# Valid backend names
+VALID_BACKENDS = {"qwen", "chatterbox", "kokoro", "fish_speech", "bark", "cosyvoice", "coqui_xtts", "mock"}
+
+# Valid output formats
+VALID_OUTPUT_FORMATS = {"wav", "mp3", "flac", "ogg"}
+
+
 @dataclass
 class TTSConfig:
     """TTS Toolkit configuration."""
@@ -80,17 +92,108 @@ class TTSConfig:
     # Metadata
     metadata: Dict[str, str] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        """Validate config after initialization."""
+        self.validate()
+
+    def validate(self) -> None:
+        """Validate configuration values.
+
+        Raises:
+            ConfigValidationError: If validation fails
+        """
+        errors = []
+
+        # Validate backend
+        if self.backend not in VALID_BACKENDS:
+            errors.append(f"Invalid backend '{self.backend}'. Valid options: {', '.join(sorted(VALID_BACKENDS))}")
+
+        # Validate temperature
+        if not 0.0 <= self.temperature <= 2.0:
+            errors.append(f"Temperature must be between 0.0 and 2.0, got {self.temperature}")
+
+        # Validate top_k
+        if self.top_k < 1:
+            errors.append(f"top_k must be >= 1, got {self.top_k}")
+
+        # Validate top_p
+        if not 0.0 < self.top_p <= 1.0:
+            errors.append(f"top_p must be between 0.0 and 1.0, got {self.top_p}")
+
+        # Validate chunk settings
+        if self.chunk_min < 1:
+            errors.append(f"chunk_min must be >= 1, got {self.chunk_min}")
+        if self.chunk_max < self.chunk_min:
+            errors.append(f"chunk_max ({self.chunk_max}) must be >= chunk_min ({self.chunk_min})")
+        if not self.chunk_min <= self.chunk_target <= self.chunk_max:
+            errors.append(f"chunk_target ({self.chunk_target}) must be between chunk_min ({self.chunk_min}) and chunk_max ({self.chunk_max})")
+
+        # Validate crossfade
+        if self.crossfade_ms < 0:
+            errors.append(f"crossfade_ms must be >= 0, got {self.crossfade_ms}")
+
+        # Validate output format
+        if self.output_format not in VALID_OUTPUT_FORMATS:
+            errors.append(f"Invalid output_format '{self.output_format}'. Valid options: {', '.join(sorted(VALID_OUTPUT_FORMATS))}")
+
+        # Validate sample rate
+        valid_sample_rates = {8000, 16000, 22050, 24000, 44100, 48000}
+        if self.sample_rate not in valid_sample_rates:
+            errors.append(f"Unusual sample_rate {self.sample_rate}. Common values: {sorted(valid_sample_rates)}")
+
+        # Validate batch settings
+        if self.batch_workers < 1:
+            errors.append(f"batch_workers must be >= 1, got {self.batch_workers}")
+        if self.batch_timeout < 1:
+            errors.append(f"batch_timeout must be >= 1, got {self.batch_timeout}")
+
+        # Validate memory limits
+        if self.max_text_chars < 1:
+            errors.append(f"max_text_chars must be >= 1, got {self.max_text_chars}")
+
+        if errors:
+            raise ConfigValidationError("Config validation failed:\n  - " + "\n  - ".join(errors))
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary."""
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "TTSConfig":
-        """Create config from dictionary."""
+    def from_dict(cls, data: Dict[str, Any], validate: bool = True) -> "TTSConfig":
+        """Create config from dictionary.
+
+        Args:
+            data: Dictionary of config values
+            validate: Whether to validate the config (default: True)
+
+        Returns:
+            TTSConfig instance
+        """
+        from dataclasses import fields, MISSING
+
         # Filter to only known fields
-        known_fields = {f.name for f in cls.__dataclass_fields__.values()}
+        known_fields = {f.name for f in fields(cls)}
         filtered = {k: v for k, v in data.items() if k in known_fields}
-        return cls(**filtered)
+
+        # Build kwargs with proper defaults
+        kwargs = {}
+        for f in fields(cls):
+            if f.name in filtered:
+                kwargs[f.name] = filtered[f.name]
+            elif f.default is not MISSING:
+                kwargs[f.name] = f.default
+            elif f.default_factory is not MISSING:
+                kwargs[f.name] = f.default_factory()
+
+        # Create instance - __post_init__ will validate if validate=True
+        if not validate:
+            # Skip validation by creating without __post_init__
+            instance = object.__new__(cls)
+            for key, value in kwargs.items():
+                setattr(instance, key, value)
+            return instance
+
+        return cls(**kwargs)
 
     def merge(self, other: "TTSConfig") -> "TTSConfig":
         """Merge another config into this one (other takes priority)."""

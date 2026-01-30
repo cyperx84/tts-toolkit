@@ -1,5 +1,6 @@
 """Abstract base classes for format handlers."""
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
@@ -8,6 +9,8 @@ import numpy as np
 
 if TYPE_CHECKING:
     from ..backends.base import TTSBackend, VoicePrompt
+
+logger = logging.getLogger("tts-toolkit")
 
 
 @dataclass
@@ -66,8 +69,13 @@ class FormatHandler(ABC):
             try:
                 from ..backends import QwenBackend
                 self._backend = QwenBackend()
-            except ImportError:
+                logger.info("Using QwenBackend (default)")
+            except ImportError as e:
                 from ..backends import MockBackend
+                logger.warning(
+                    f"qwen-tts not available ({e}), falling back to MockBackend. "
+                    "Install with: pip install tts-toolkit[qwen]"
+                )
                 self._backend = MockBackend()
         return self._backend
 

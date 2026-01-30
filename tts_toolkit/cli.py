@@ -5,7 +5,10 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .backends.base import TTSBackend
 
 # Configure logging
 logging.basicConfig(
@@ -30,15 +33,42 @@ def _validate_file_exists(path: str, arg_name: str) -> None:
 
 
 def _validate_audio_file(path: str, arg_name: str) -> None:
-    """Validate that an audio file exists and has valid extension."""
+    """Validate that an audio file exists, has valid extension, and is non-empty."""
     _validate_file_exists(path, arg_name)
     valid_exts = {".wav", ".mp3", ".flac", ".ogg", ".m4a"}
     ext = Path(path).suffix.lower()
     if ext not in valid_exts:
         logger.warning(f"{arg_name} has unusual extension '{ext}', expected one of: {valid_exts}")
 
+    # Check file is non-empty
+    file_size = os.path.getsize(path)
+    if file_size == 0:
+        logger.error(f"{arg_name} is empty: {path}")
+        sys.exit(1)
 
-def main():
+    # Warn if file is suspiciously small (< 1KB)
+    if file_size < 1024:
+        logger.warning(f"{arg_name} is very small ({file_size} bytes), may not contain valid audio")
+
+    # Warn if file is very large (> 100MB)
+    if file_size > 100 * 1024 * 1024:
+        logger.warning(f"{arg_name} is large ({file_size / (1024*1024):.1f}MB), may cause memory issues")
+
+
+def _validate_text_content(text: str, source: str, max_chars: int = 100000) -> None:
+    """Validate text content is not empty and within reasonable limits."""
+    if not text or not text.strip():
+        logger.error(f"{source} is empty or contains only whitespace")
+        sys.exit(1)
+
+    if len(text) > max_chars:
+        logger.warning(
+            f"{source} is very long ({len(text)} chars). "
+            f"Consider splitting into smaller files for better results."
+        )
+
+
+def main() -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         description="TTS Toolkit - Generate podcasts, audiobooks, voiceovers, and dialogues",
@@ -149,10 +179,23 @@ def main():
             parser.print_help()
             sys.exit(1)
     except KeyboardInterrupt:
-        print("\nInterrupted.")
+        logger.info("Interrupted by user")
+        sys.exit(1)
+    except FileNotFoundError as e:
+        logger.error(f"File not found: {e}")
+        sys.exit(1)
+    except PermissionError as e:
+        logger.error(f"Permission denied: {e}")
+        sys.exit(1)
+    except ValueError as e:
+        logger.error(f"Invalid value: {e}")
+        sys.exit(1)
+    except RuntimeError as e:
+        logger.error(f"Runtime error: {e}")
         sys.exit(1)
     except Exception as e:
-        print(f"\nError: {e}")
+        logger.error(f"Unexpected error: {e}")
+        logger.debug("Full traceback:", exc_info=True)
         sys.exit(1)
 
 
@@ -195,7 +238,7 @@ def _add_common_args(parser: argparse.ArgumentParser):
     )
 
 
-def _create_backend(args):
+def _create_backend(args: argparse.Namespace) -> "TTSBackend":
     """Create TTS backend from args."""
     backend_name = args.backend
 
@@ -381,27 +424,25 @@ def _add_pipeline_args(parser: argparse.ArgumentParser):
     _add_common_args(parser)
 
 
-def _run_voiceover(args):
+def _run_voiceover(args: argparse.Namespace) -> None:
     """Run voiceover generation."""
     from .formats.voiceover import VoiceoverHandler
     from .voices.registry import VoiceRegistry
 
-    # Validate input file exists
+    # Validate input file exists early
     _validate_file_exists(args.input, "--input")
+
+    # Read and validate input text early (before creating backend)
+    with open(args.input, "r", encoding="utf-8") as f:
+        text = f.read()
+
+    _validate_text_content(text, "Input file")
 
     logger.info(f"Generating voiceover from: {args.input}")
 
     # Setup backend
     backend = _create_backend(args)
     handler = VoiceoverHandler(backend=backend)
-
-    # Read input
-    with open(args.input, "r", encoding="utf-8") as f:
-        text = f.read()
-
-    if not text.strip():
-        logger.error("Input file is empty")
-        sys.exit(1)
 
     # Get voice reference
     ref_audio = args.ref_audio
@@ -437,12 +478,12 @@ def _run_voiceover(args):
     logger.info(f"Duration: {output.duration_sec:.1f}s")
 
 
-def _run_podcast(args):
+def _run_podcast(args: argparse.Namespace) -> None:
     """Run podcast generation."""
     from .formats.podcast import PodcastHandler
     from .voices.registry import VoiceRegistry
 
-    print(f"Generating podcast from: {args.input}")
+    logger.info(f"Generating podcast from: {args.input}")
 
     # Setup backend
     backend = _create_backend(args)
@@ -483,16 +524,16 @@ def _run_podcast(args):
         temperature=args.temperature,
     )
 
-    print(f"Output saved to: {args.output}")
-    print(f"Duration: {output.duration_sec:.1f}s")
+    logger.info(f"Output saved to: {args.output}")
+    logger.info(f"Duration: {output.duration_sec:.1f}s")
 
 
-def _run_audiobook(args):
+def _run_audiobook(args: argparse.Namespace) -> None:
     """Run audiobook generation."""
     from .formats.audiobook import AudiobookHandler
     from .voices.registry import VoiceRegistry
 
-    print(f"Generating audiobook from: {args.input}")
+    logger.info(f"Generating audiobook from: {args.input}")
 
     # Setup backend
     backend = _create_backend(args)
@@ -509,7 +550,7 @@ def _run_audiobook(args):
         ref_text = profile.reference_text
 
     if not ref_audio or not ref_text:
-        print("Error: Must provide --ref-audio and --ref-text, or --voice")
+        logger.error("Must provide --ref-audio and --ref-text, or --voice")
         sys.exit(1)
 
     result = handler.generate_book(
@@ -523,18 +564,18 @@ def _run_audiobook(args):
         temperature=args.temperature,
     )
 
-    print(f"Generated {result['total_chapters']} chapters")
-    print(f"Total duration: {result['total_duration_sec'] / 60:.1f} minutes")
+    logger.info(f"Generated {result['total_chapters']} chapters")
+    logger.info(f"Total duration: {result['total_duration_sec'] / 60:.1f} minutes")
     if result['combined_path']:
-        print(f"Combined file: {result['combined_path']}")
+        logger.info(f"Combined file: {result['combined_path']}")
 
 
-def _run_dialogue(args):
+def _run_dialogue(args: argparse.Namespace) -> None:
     """Run dialogue generation."""
     from .formats.dialogue import DialogueHandler
     from .voices.registry import VoiceRegistry
 
-    print(f"Generating dialogue from: {args.input}")
+    logger.info(f"Generating dialogue from: {args.input}")
 
     # Setup backend
     backend = _create_backend(args)
@@ -574,12 +615,12 @@ def _run_dialogue(args):
         temperature=args.temperature,
     )
 
-    print(f"Output saved to: {args.output}")
-    print(f"Duration: {output.duration_sec:.1f}s")
-    print(f"Speakers: {', '.join(speakers)}")
+    logger.info(f"Output saved to: {args.output}")
+    logger.info(f"Duration: {output.duration_sec:.1f}s")
+    logger.info(f"Speakers: {', '.join(speakers)}")
 
 
-def _run_voice(args):
+def _run_voice(args: argparse.Namespace) -> None:
     """Run voice management commands."""
     from .voices.registry import VoiceRegistry
 
@@ -592,32 +633,32 @@ def _run_voice(args):
             reference_text=args.text,
             description=args.description,
         )
-        print(f"Created voice profile: {profile.name}")
+        logger.info(f"Created voice profile: {profile.name}")
 
     elif args.voice_command == "list":
         profiles = registry.list_detailed()
         if not profiles:
-            print("No voice profiles found.")
+            logger.info("No voice profiles found.")
         else:
-            print("Voice profiles:")
+            logger.info("Voice profiles:")
             for p in profiles:
-                print(f"  - {p['name']}: {p['description'] or 'No description'}")
+                logger.info(f"  - {p['name']}: {p['description'] or 'No description'}")
 
     elif args.voice_command == "delete":
         if registry.delete(args.name):
-            print(f"Deleted voice profile: {args.name}")
+            logger.info(f"Deleted voice profile: {args.name}")
         else:
-            print(f"Voice profile not found: {args.name}")
+            logger.warning(f"Voice profile not found: {args.name}")
 
     elif args.voice_command == "export":
         output = registry.export(args.name, args.output)
-        print(f"Exported to: {output}")
+        logger.info(f"Exported to: {output}")
 
     else:
-        print("Usage: tts-toolkit voice {create|list|delete|export}")
+        logger.info("Usage: tts-toolkit voice {create|list|delete|export}")
 
 
-def _run_say(args):
+def _run_say(args: argparse.Namespace) -> None:
     """Run quick TTS generation."""
     from .voices.registry import VoiceRegistry
     from .voices.emotions import apply_emotion
@@ -634,7 +675,7 @@ def _run_say(args):
         ref_text = profile.reference_text
 
     if not ref_audio or not ref_text:
-        print("Error: Must provide --ref-audio and --ref-text, or --voice")
+        logger.error("Must provide --ref-audio and --ref-text, or --voice")
         sys.exit(1)
 
     # Setup backend
@@ -661,10 +702,10 @@ def _run_say(args):
     )
 
     sf.write(args.output, audio, sr)
-    print(f"Output saved to: {args.output}")
+    logger.info(f"Output saved to: {args.output}")
 
 
-def _run_pipeline(args):
+def _run_pipeline(args: argparse.Namespace) -> None:
     """Run pipeline long-form TTS."""
     from .core.pipeline import Pipeline
 
@@ -699,8 +740,8 @@ def _run_pipeline(args):
             pbar.n = current
             pbar.refresh()
     except ImportError:
-        def progress_callback(current, total, text):
-            print(f"Progress: {current}/{total} chunks")
+        def progress_callback(current: int, total: int, text: str) -> None:
+            logger.info(f"Progress: {current}/{total} chunks")
 
     resume = not args.no_resume
 
@@ -718,7 +759,7 @@ def _run_pipeline(args):
         top_p=args.top_p,
     )
 
-    print(f"\nDone! Output saved to: {output_path}")
+    logger.info(f"Done! Output saved to: {output_path}")
 
 
 def _add_batch_args(parser: argparse.ArgumentParser):
@@ -757,7 +798,7 @@ def _add_config_args(parser: argparse.ArgumentParser):
     set_parser.add_argument("--global", "-g", dest="global_config", action="store_true")
 
 
-def _run_batch(args):
+def _run_batch(args: argparse.Namespace) -> None:
     """Run batch processing."""
     from .utils.batch import (
         BatchProcessor,
@@ -830,48 +871,46 @@ def _run_batch(args):
     # Process
     summary = processor.process(jobs, progress_callback=progress)
 
-    # Print summary
-    print(f"\n{'='*50}")
-    print(f"Batch Processing Complete")
-    print(f"{'='*50}")
-    print(f"Total: {summary.total_jobs}")
-    print(f"Successful: {summary.successful}")
-    print(f"Failed: {summary.failed}")
-    print(f"Success Rate: {summary.success_rate:.1f}%")
-    print(f"Total Audio Duration: {summary.total_duration_sec / 60:.1f} minutes")
-    print(f"Processing Time: {summary.total_processing_time_sec:.1f} seconds")
+    # Log summary
+    logger.info(f"{'='*50}")
+    logger.info("Batch Processing Complete")
+    logger.info(f"{'='*50}")
+    logger.info(f"Total: {summary.total_jobs}")
+    logger.info(f"Successful: {summary.successful}")
+    logger.info(f"Failed: {summary.failed}")
+    logger.info(f"Success Rate: {summary.success_rate:.1f}%")
+    logger.info(f"Total Audio Duration: {summary.total_duration_sec / 60:.1f} minutes")
+    logger.info(f"Processing Time: {summary.total_processing_time_sec:.1f} seconds")
 
     # Save report
     if args.report:
         with open(args.report, "w") as f:
             json.dump(summary.to_dict(), f, indent=2)
-        print(f"Report saved to: {args.report}")
+        logger.info(f"Report saved to: {args.report}")
 
     if summary.failed > 0:
         sys.exit(1)
 
 
-def _run_config(args):
+def _run_config(args: argparse.Namespace) -> None:
     """Run config management commands."""
     from .utils.config import (
-        TTSConfig,
         load_config,
         save_config,
         init_config,
-        GLOBAL_CONFIG_FILE,
     )
 
     if args.config_command == "init":
         path = init_config(global_config=args.global_config)
-        print(f"Created config file: {path}")
+        logger.info(f"Created config file: {path}")
 
     elif args.config_command == "show":
         config = load_config()
-        print("Current Configuration:")
-        print("-" * 40)
+        logger.info("Current Configuration:")
+        logger.info("-" * 40)
         for key, value in config.to_dict().items():
             if value:
-                print(f"  {key}: {value}")
+                logger.info(f"  {key}: {value}")
 
     elif args.config_command == "set":
         config = load_config()
@@ -879,7 +918,7 @@ def _run_config(args):
 
         if args.key not in config_dict:
             logger.error(f"Unknown config key: {args.key}")
-            print(f"Valid keys: {', '.join(config_dict.keys())}")
+            logger.info(f"Valid keys: {', '.join(config_dict.keys())}")
             sys.exit(1)
 
         # Convert value type
@@ -895,10 +934,10 @@ def _run_config(args):
 
         setattr(config, args.key, new_value)
         save_config(config, global_config=args.global_config)
-        print(f"Set {args.key} = {new_value}")
+        logger.info(f"Set {args.key} = {new_value}")
 
     else:
-        print("Usage: tts-toolkit config {init|show|set}")
+        logger.info("Usage: tts-toolkit config {init|show|set}")
 
 
 if __name__ == "__main__":

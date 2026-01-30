@@ -89,13 +89,15 @@ class QwenBackend(TTSBackend):
             else:
                 self._torch_dtype = torch.bfloat16
 
-        print(f"Loading Qwen model: {self.model_name}")
+        import logging
+        logger = logging.getLogger("tts-toolkit")
+        logger.info(f"Loading Qwen model: {self.model_name}")
         self._model = Qwen3TTSModel.from_pretrained(
             self.model_name,
             device_map=self.device,
             torch_dtype=self._torch_dtype,
         )
-        print("Model loaded.")
+        logger.info("Qwen model loaded")
 
     def create_voice_prompt(
         self,
@@ -117,7 +119,9 @@ class QwenBackend(TTSBackend):
         if self._model is None:
             self.load_model()
 
-        print(f"Creating voice prompt from: {reference_audio}")
+        import logging
+        logger = logging.getLogger("tts-toolkit")
+        logger.info(f"Creating voice prompt from: {reference_audio}")
         qwen_prompt = self._model.create_voice_clone_prompt(
             ref_audio=reference_audio,
             ref_text=reference_text,
@@ -214,14 +218,16 @@ class QwenBackend(TTSBackend):
         if self._model is not None:
             del self._model
             self._model = None
+            self.cleanup_gpu_memory()
 
-            # Try to free GPU memory
-            try:
-                import torch
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            except ImportError:
-                pass
+    def cleanup_gpu_memory(self) -> None:
+        """Clean up GPU memory cache."""
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except ImportError:
+            pass
 
     def get_info(self) -> Dict[str, Any]:
         """Get backend information."""

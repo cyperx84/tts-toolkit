@@ -135,6 +135,15 @@ class TTSBackend(ABC):
         """Unload the model to free memory."""
         pass
 
+    def cleanup_gpu_memory(self) -> None:
+        """Clean up GPU memory after operations.
+
+        Should be called after batch processing or large operations
+        to free GPU memory. Default implementation does nothing.
+        Backends using GPU should override this.
+        """
+        pass
+
     def get_info(self) -> Dict[str, Any]:
         """Get information about this backend."""
         return {

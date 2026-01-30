@@ -90,9 +90,11 @@ class FishSpeechBackend(TTSBackend):
                 "Install with: pip install fish-audio-sdk"
             ) from e
 
-        print("Initializing Fish Audio client")
+        import logging
+        logger = logging.getLogger("tts-toolkit")
+        logger.info("Initializing Fish Audio client")
         self._client = Session(api_key=self.api_key)
-        print("Client initialized.")
+        logger.info("Fish Audio client initialized")
 
     def create_voice_prompt(
         self,
@@ -197,6 +199,9 @@ class FishSpeechBackend(TTSBackend):
     def _bytes_to_array(self, audio_bytes: bytes) -> np.ndarray:
         """Convert audio bytes to numpy array."""
         import io
+        import logging
+        logger = logging.getLogger("tts-toolkit")
+
         try:
             import soundfile as sf
             audio, sr = sf.read(io.BytesIO(audio_bytes))
@@ -204,8 +209,13 @@ class FishSpeechBackend(TTSBackend):
             if audio.dtype != np.float32:
                 audio = audio.astype(np.float32)
             return audio
-        except Exception:
-            # Fallback: assume raw PCM
+        except ImportError:
+            logger.warning("soundfile not installed, using raw PCM fallback")
+            audio = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32)
+            audio = audio / 32768.0
+            return audio
+        except (RuntimeError, ValueError) as e:
+            logger.warning(f"Failed to decode audio with soundfile: {e}. Using raw PCM fallback.")
             audio = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32)
             audio = audio / 32768.0
             return audio

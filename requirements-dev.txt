@@ -1,0 +1,21 @@
+# Development dependencies for tts-toolkit
+# Install with: pip install -r requirements-dev.txt
+
+# Testing
+pytest>=7.0
+pytest-cov>=4.0
+pytest-timeout>=2.0
+
+# Code quality
+black>=23.0
+ruff>=0.1
+mypy>=1.0
+
+# Pre-commit hooks
+pre-commit>=3.0
+
+# Documentation
+# mkdocs>=1.5  # Uncomment if using mkdocs
+
+# Optional: for memory profiling tests
+psutil>=5.9
