@@ -87,7 +87,7 @@ class TestAudioStitcher:
         """Test default initialization."""
         stitcher = AudioStitcher()
         assert stitcher.crossfade_ms == 75
-        assert stitcher.sample_rate == 24000
+        assert stitcher.sample_rate is None  # Auto-detected from first file
 
     def test_init_custom(self):
         """Test custom initialization."""

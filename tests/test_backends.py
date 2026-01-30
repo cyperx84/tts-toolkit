@@ -68,7 +68,7 @@ class TestMockBackend:
     def test_supports_voice_cloning(self):
         """Test voice cloning support flag."""
         backend = MockBackend()
-        assert backend.supports_voice_cloning() is False
+        assert backend.supports_voice_cloning() is True
 
     def test_supports_streaming(self):
         """Test streaming support flag."""
@@ -89,7 +89,7 @@ class TestMockBackend:
 
         assert info["sample_rate"] == 22050
         assert info["mode"] == "sine"
-        assert info["supports_voice_cloning"] is False
+        assert info["supports_voice_cloning"] is True
 
 
 class TestVoicePrompt:

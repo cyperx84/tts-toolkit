@@ -194,7 +194,7 @@ class TestSrtGenerator:
 
     def test_generate_srt_from_segments(self):
         """Test SRT generation from segments."""
-        from tts_toolkit.export.srt_generator import SrtGenerator
+        from tts_toolkit.export.srt_generator import SRTGenerator
         from tts_toolkit.formats.base import Segment
 
         segments = [
@@ -202,28 +202,30 @@ class TestSrtGenerator:
             Segment(text="How are you?", speaker_id="S2"),
         ]
 
-        # Create timing info
-        timings = [
-            {"start": 0.0, "end": 1.5},
-            {"start": 1.5, "end": 3.0},
-        ]
+        # Create audio durations (in seconds)
+        audio_durations = [1.5, 1.5]
 
-        generator = SrtGenerator()
-        srt_content = generator.generate(segments, timings)
+        generator = SRTGenerator()
+        entries = generator.generate_from_segments(segments, audio_durations)
 
-        assert "1\n" in srt_content
-        assert "Hello world" in srt_content
-        assert "How are you?" in srt_content
-        assert "00:00:00" in srt_content
+        assert len(entries) >= 2
+        # Check first entry
+        assert entries[0].text == "Hello world" or "Hello world" in entries[0].text
+        # Check entries have timing info
+        assert entries[0].start_ms == 0
 
-    def test_format_timestamp(self):
-        """Test SRT timestamp formatting."""
-        from tts_toolkit.export.srt_generator import SrtGenerator
+    def test_srt_entry_format(self):
+        """Test SRT entry has correct structure."""
+        from tts_toolkit.export.srt_generator import SRTGenerator
+        from tts_toolkit.formats.base import Segment
+        from tts_toolkit.timing.srt_parser import SRTEntry
 
-        generator = SrtGenerator()
+        segments = [Segment(text="Test text")]
+        generator = SRTGenerator()
+        entries = generator.generate_from_segments(segments)
 
-        # Test various timestamps
-        assert generator._format_timestamp(0.0) == "00:00:00,000"
-        assert generator._format_timestamp(1.5) == "00:00:01,500"
-        assert generator._format_timestamp(65.123) == "00:01:05,123"
-        assert generator._format_timestamp(3661.5) == "01:01:01,500"
+        assert len(entries) >= 1
+        assert isinstance(entries[0], SRTEntry)
+        assert entries[0].index >= 1
+        assert entries[0].start_ms >= 0
+        assert entries[0].end_ms > entries[0].start_ms

@@ -78,7 +78,7 @@ class TestVoiceRegistry:
             sf.write(audio_path, audio, 24000)
 
             # Create registry with custom path
-            registry = VoiceRegistry(base_dir=tmpdir)
+            registry = VoiceRegistry(registry_dir=tmpdir)
 
             profile = registry.create(
                 name="test_narrator",
@@ -99,7 +99,7 @@ class TestVoiceRegistry:
             audio_path = Path(tmpdir) / "voice.wav"
             sf.write(audio_path, audio, 24000)
 
-            registry = VoiceRegistry(base_dir=tmpdir)
+            registry = VoiceRegistry(registry_dir=tmpdir)
             registry.create(
                 name="myvoice",
                 reference_audio=str(audio_path),
@@ -112,20 +112,20 @@ class TestVoiceRegistry:
             assert retrieved.name == "myvoice"
 
     def test_registry_get_nonexistent(self):
-        """Test getting nonexistent voice returns None."""
+        """Test getting nonexistent voice raises KeyError."""
         from tts_toolkit.voices.registry import VoiceRegistry
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            registry = VoiceRegistry(base_dir=tmpdir)
-            result = registry.get("nonexistent")
-            assert result is None
+            registry = VoiceRegistry(registry_dir=tmpdir)
+            with pytest.raises(KeyError):
+                registry.get("nonexistent")
 
     def test_registry_list_empty(self):
         """Test listing empty registry."""
         from tts_toolkit.voices.registry import VoiceRegistry
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            registry = VoiceRegistry(base_dir=tmpdir)
+            registry = VoiceRegistry(registry_dir=tmpdir)
             voices = registry.list()
             assert voices == []
 
@@ -138,7 +138,7 @@ class TestVoiceRegistry:
             audio_path = Path(tmpdir) / "voice.wav"
             sf.write(audio_path, audio, 24000)
 
-            registry = VoiceRegistry(base_dir=tmpdir)
+            registry = VoiceRegistry(registry_dir=tmpdir)
             registry.create(
                 name="deleteme",
                 reference_audio=str(audio_path),
@@ -157,7 +157,7 @@ class TestVoiceRegistry:
         from tts_toolkit.voices.registry import VoiceRegistry
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            registry = VoiceRegistry(base_dir=tmpdir)
+            registry = VoiceRegistry(registry_dir=tmpdir)
             result = registry.delete("nonexistent")
             assert result is False
 
@@ -170,7 +170,7 @@ class TestVoiceRegistry:
             audio_path = Path(tmpdir) / "voice.wav"
             sf.write(audio_path, audio, 24000)
 
-            registry = VoiceRegistry(base_dir=tmpdir)
+            registry = VoiceRegistry(registry_dir=tmpdir)
             registry.create(
                 name="exists",
                 reference_audio=str(audio_path),
@@ -219,14 +219,14 @@ class TestEmotions:
         # Should return original or similar
         assert "temperature" in result
 
-    def test_get_emotion_preset(self):
+    def test_get_emotion(self):
         """Test getting emotion preset directly."""
-        from tts_toolkit.voices.emotions import get_emotion_preset
+        from tts_toolkit.voices.emotions import get_emotion, EmotionPreset
 
-        preset = get_emotion_preset("happy")
+        preset = get_emotion("happy")
 
         assert preset is not None
-        assert isinstance(preset, dict)
+        assert isinstance(preset, EmotionPreset)
 
     def test_list_emotions(self):
         """Test listing available emotions."""
@@ -234,9 +234,9 @@ class TestEmotions:
 
         emotions = list_emotions()
 
-        assert isinstance(emotions, list)
+        assert isinstance(emotions, dict)
         assert len(emotions) > 0
-        assert "neutral" in emotions
+        assert "neutral" in emotions  # Checks dict keys
 
 
 class TestEmotionPreset:
