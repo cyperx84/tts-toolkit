@@ -372,5 +372,5 @@ class TestReportGeneration:
         summary = processor.process(jobs)
         report_dict = summary.to_dict()
 
-        assert "results" in report_dict
-        assert len(report_dict["results"]) == 1
+        assert "jobs" in report_dict
+        assert len(report_dict["jobs"]) == 1
